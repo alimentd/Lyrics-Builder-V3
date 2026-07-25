@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proclaim Song Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7fb;
+    --panel: #ffffff;
+    --text: #172033;
+    --muted: #687086;
+    --border: #dce0e9;
+    --soft: #f0f3f9;
+    --accent: #3458d4;
+    --accent-soft: #e9eeff;
+    --good: #18794e;
+    --good-soft: #e8f7ef;
+    --warn: #a65b00;
+    --warn-soft: #fff3df;
+    --danger: #b42318;
+    --danger-soft: #ffebe9;
+    --shadow: 0 12px 35px rgba(25, 35, 58, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10131a;
+      --panel: #191d27;
+      --text: #edf0f7;
+      --muted: #aeb5c7;
+      --border: #343a49;
+      --soft: #222735;
+      --accent: #8ca7ff;
+      --accent-soft: #242f57;
+      --good: #7ee2ad;
+      --good-soft: #183828;
+      --warn: #ffc66d;
+      --warn-soft: #493518;
+      --danger: #ff9a90;
+      --danger-soft: #482521;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.45;
+  }
+  button, input, textarea, select { font: inherit; }
+  button {
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    padding: 0.52rem 0.85rem;
+    font-weight: 650;
+    font-size: 0.86rem;
+  }
+  button:hover { filter: brightness(1.04); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible,
+  summary:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    outline-offset: 2px;
+  }
+  button.secondary {
+    background: var(--panel);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  button.quiet {
+    background: transparent;
+    border-color: transparent;
+    color: var(--accent);
+  }
+  button.small { padding: 0.32rem 0.58rem; font-size: 0.78rem; }
+  .app {
+    width: min(1500px, 100%);
+    margin: 0 auto;
+    padding: 1rem 1.25rem 2rem;
+  }
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+  }
+  h1 { margin: 0; font-size: clamp(1.35rem, 2vw, 1.75rem); letter-spacing: -0.025em; }
+  .sub { color: var(--muted); margin: 0.18rem 0 0; font-size: 0.9rem; }
+  #saveStatus {
+    color: var(--muted);
+    font-size: 0.78rem;
+    white-space: nowrap;
+    padding-top: 0.3rem;
+  }
+  .toolbar, .export-actions, .inline-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.48rem;
+  }
+  .toolbar { margin-bottom: 0.75rem; }
+  #pdfStatus { color: var(--muted); font-size: 0.82rem; margin-left: 0.25rem; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  details.meta {
+    margin-bottom: 0.85rem;
+    overflow: hidden;
+  }
+  details.meta > summary {
+    cursor: pointer;
+    font-weight: 750;
+    padding: 0.72rem 0.9rem;
+    list-style-position: inside;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(110px, 1fr));
+    gap: 0.7rem;
+    padding: 0 0.9rem 0.9rem;
+  }
+  .span-2 { grid-column: span 2; }
+  .span-3 { grid-column: span 3; }
+  label {
+    display: block;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+  .hint { color: var(--muted); font-size: 0.72rem; font-weight: 500; }
+  input[type="text"], input[type="number"], textarea, select {
+    width: 100%;
+    color: var(--text);
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.56rem 0.64rem;
+  }
+  textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    resize: vertical;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(350px, 0.9fr) minmax(480px, 1.35fr);
+    gap: 0.85rem;
+    align-items: start;
+  }
+  .editor, .preview { padding: 0.9rem; min-width: 0; }
+  .field + .field { margin-top: 0.85rem; }
+  .field-header, .preview-header, .preflight-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  #arrangement { min-height: 70px; }
+  #piece { min-height: 420px; }
+  #whitespaceDebug {
+    min-height: 420px;
+    margin: 0;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.64rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    white-space: pre-wrap;
+    background: var(--soft);
+  }
+  #whitespaceDebug mark.sp { background: none; color: var(--muted); }
+  #whitespaceDebug mark.nbsp { background: var(--accent-soft); color: var(--accent); border-radius: 2px; }
+  #whitespaceDebug mark.tab { background: var(--danger-soft); color: var(--danger); border-radius: 2px; }
+  #whitespaceDebug mark.other { background: var(--warn-soft); color: var(--warn); border-radius: 2px; }
+  .preview-header { align-items: flex-end; margin-bottom: 0.7rem; }
+  .preview-title h2 { font-size: 1rem; margin: 0; }
+  .preview-title p { margin: 0.12rem 0 0; color: var(--muted); font-size: 0.77rem; }
+  .preview-settings {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.55rem;
+  }
+  .compact-control label { margin: 0 0 0.2rem; }
+  .compact-control select { min-width: 72px; padding: 0.38rem 0.45rem; }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 650;
+    padding-bottom: 0.38rem;
+  }
+  .check input { accent-color: var(--accent); }
+  .preflight {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0.65rem 0.72rem;
+    margin-bottom: 0.75rem;
+    background: var(--soft);
+  }
+  .preflight-header strong { font-size: 0.84rem; }
+  #preflightSummary { color: var(--muted); font-size: 0.77rem; }
+  #preflightList {
+    display: grid;
+    gap: 0.35rem;
+    list-style: none;
+    padding: 0;
+    margin: 0.55rem 0 0;
+    font-size: 0.77rem;
+  }
+  #preflightList:empty { display: none; }
+  .issue {
+    border-radius: 6px;
+    padding: 0.36rem 0.5rem;
+  }
+  .issue.error { color: var(--danger); background: var(--danger-soft); }
+  .issue.warning { color: var(--warn); background: var(--warn-soft); }
+  .issue.good { color: var(--good); background: var(--good-soft); }
+  #slidePreview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.68rem;
+    max-height: 510px;
+    overflow: auto;
+    padding: 0.1rem 0.1rem 0.1rem 0;
+  }
+  .slide {
+    aspect-ratio: 16 / 9;
+    background: #11141b;
+    color: white;
+    border: 1px solid #2b3140;
+    border-radius: 9px;
+    padding: 0.8rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide.warn { box-shadow: inset 0 0 0 2px #e6a23c; }
+  .slide-label {
+    color: #94a9ff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+  .slide-number {
+    position: absolute;
+    right: 0.55rem;
+    top: 0.48rem;
+    color: #8e96a7;
+    font-size: 0.62rem;
+  }
+  .slide-lines {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    font-size: clamp(0.72rem, 1vw, 0.9rem);
+    line-height: 1.35;
+    white-space: pre-wrap;
+  }
+  .slide.blank .slide-lines { color: #7d8595; letter-spacing: 0.16em; font-size: 0.65rem; }
+  .slide-warning {
+    color: #ffc86a;
+    font-size: 0.58rem;
+    text-align: center;
+    min-height: 0.8rem;
+  }
+  .empty-state {
+    grid-column: 1 / -1;
+    min-height: 160px;
+    border: 1px dashed var(--border);
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: var(--muted);
+    padding: 1rem;
+  }
+  .export-box {
+    margin-top: 0.85rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.8rem;
+  }
+  .export-actions { margin-bottom: 0.55rem; }
+  details.output-details summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  #output, #exportPreview {
+    white-space: pre-wrap;
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem;
+    max-height: 260px;
+    overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.76rem;
+  }
+  #output { margin-top: 0.45rem; }
+  #exportPreview { margin: 0.45rem 0 0; }
+  dialog {
+    width: min(900px, calc(100% - 2rem));
+    max-height: calc(100vh - 2rem);
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+    padding: 0;
+  }
+  dialog::backdrop { background: rgba(8, 12, 22, 0.65); }
+  .dialog-head, .dialog-foot { padding: 0.85rem 1rem; }
+  .dialog-head { border-bottom: 1px solid var(--border); }
+  .dialog-head h2 { margin: 0; font-size: 1rem; }
+  .dialog-head p { color: var(--muted); margin: 0.15rem 0 0; font-size: 0.78rem; }
+  .dialog-body { padding: 0.9rem 1rem; overflow: auto; }
+  .dialog-grid { display: grid; grid-template-columns: 0.7fr 1.3fr; gap: 0.75rem; }
+  #pdfArrangementReview { min-height: 100px; }
+  #pdfPieceReview { min-height: 300px; }
+  #pdfSegmentSummary {
+    margin-bottom: 0.75rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+  .dialog-foot {
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+  @media (max-width: 1050px) {
+    .meta-grid { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+    .layout { grid-template-columns: 1fr; }
+    #piece, #whitespaceDebug { min-height: 300px; }
+  }
+  @media (max-width: 650px) {
+    .app { padding: 0.75rem; }
+    .meta-grid { grid-template-columns: 1fr 1fr; }
+    .span-2, .span-3 { grid-column: span 2; }
+    .preview-header { align-items: flex-start; flex-direction: column; }
+    .dialog-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <div>
+      <h1>Proclaim Song Builder</h1>
+      <p class="sub">Prepare, check, preview, and export song lyrics for Proclaim.</p>
+    </div>
+    <span id="saveStatus" role="status">Drafts save on this device</span>
+  </header>
+
+  <div class="toolbar">
+    <button class="secondary" id="loadExample" type="button">Load example</button>
+    <button class="secondary" id="importPdfBtn" type="button">Import PDF…</button>
+    <input type="file" id="pdfInput" accept="application/pdf" hidden>
+    <button class="quiet" id="clearAll" type="button">Clear</button>
+    <span id="pdfStatus" role="status"></span>
+  </div>
+
+  <details class="meta panel" open>
+    <summary>Song details and Proclaim metadata</summary>
+    <div class="meta-grid">
+      <div class="span-2">
+        <label for="songTitle">Song title</label>
+        <input id="songTitle" type="text" placeholder="Amazing Grace">
+      </div>
+      <div class="span-2">
+        <label for="arrangementName">Arrangement name <span class="hint">(for your reference)</span></label>
+        <input id="arrangementName" type="text" placeholder="Main arrangement">
+      </div>
+      <div>
+        <label for="songKey">Key</label>
+        <input id="songKey" type="text" placeholder="D">
+      </div>
+      <div>
+        <label for="songId">CCLI Song ID</label>
+        <input id="songId" type="text" inputmode="numeric" placeholder="1234567">
+      </div>
+      <div class="span-2">
+        <label for="author">Author / contributors</label>
+        <input id="author" type="text" placeholder="First Last">
+      </div>
+      <div class="span-2">
+        <label for="copyright">Copyright</label>
+        <input id="copyright" type="text" placeholder="© Publisher">
+      </div>
+      <div class="span-2">
+        <label for="groups">Groups <span class="hint">(optional)</span></label>
+        <input id="groups" type="text" placeholder="Sunday Worship">
+      </div>
+      <div class="span-3">
+        <label for="notes">Notes</label>
+        <input id="notes" type="text" placeholder="Worship leader, tempo, or preparation notes">
+      </div>
+    </div>
+  </details>
+
+  <div class="layout">
+    <section class="editor panel" aria-label="Song editor">
+      <div class="field">
+        <label for="arrangement">Arrangement <span class="hint">(comma-separated)</span></label>
+        <textarea id="arrangement" placeholder="Blank, Verse 1, Chorus, Verse 2, Chorus, Blank"></textarea>
+      </div>
+
+      <div class="field">
+        <div class="field-header">
+          <label for="piece">Piece definition <span class="hint">(labelled sections)</span></label>
+          <div class="inline-actions">
+            <button class="quiet small" id="inspectWhitespace" type="button">Inspect whitespace</button>
+            <button class="quiet small" id="fixLineBreaks" type="button">Restore hidden breaks</button>
+          </div>
+        </div>
+        <textarea id="piece" placeholder="Verse 1&#10;Lyric line one&#10;Lyric line two&#10;&#10;Chorus&#10;Chorus lyric line"></textarea>
+        <pre id="whitespaceDebug" hidden></pre>
+      </div>
+    </section>
+
+    <section class="preview panel" aria-label="Slide preview">
+      <div class="preview-header">
+        <div class="preview-title">
+          <h2>Slide preview</h2>
+          <p>Warnings are estimates; the selected Proclaim theme still controls final fit.</p>
+        </div>
+        <div class="preview-settings">
+          <div class="compact-control">
+            <label for="maxLines">Lines per slide</label>
+            <select id="maxLines">
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="smartBreaks" checked>
+            Suggest breaks
+          </label>
+          <button class="secondary small" id="applyBreaks" type="button">Apply breaks</button>
+        </div>
+      </div>
+
+      <div class="preflight">
+        <div class="preflight-header">
+          <strong>Preflight check</strong>
+          <span id="preflightSummary"></span>
+        </div>
+        <ul id="preflightList"></ul>
+      </div>
+
+      <div id="slidePreview" aria-live="polite"></div>
+
+      <div class="export-box">
+        <div class="export-actions">
+          <button id="copyProclaim" type="button">Copy Proclaim text</button>
+          <button class="secondary" id="downloadProclaim" type="button">Download .txt</button>
+          <button class="secondary" id="copyOrder" type="button">Copy verse order</button>
+        </div>
+        <details class="output-details">
+          <summary>View arranged lyrics</summary>
+          <pre id="output">Output will appear here.</pre>
+        </details>
+        <details class="output-details">
+          <summary>View Proclaim import file</summary>
+          <pre id="exportPreview"></pre>
+        </details>
+      </div>
+    </section>
+  </div>
+</main>
+
+<dialog id="pdfReviewDialog">
+  <div class="dialog-head">
+    <h2>Review PDF import</h2>
+    <p>Correct section names, lyrics, or the arrangement before adding them to your draft.</p>
+  </div>
+  <div class="dialog-body">
+    <div id="pdfSegmentSummary"></div>
+    <div class="dialog-grid">
+      <div>
+        <label for="pdfArrangementReview">Detected arrangement</label>
+        <textarea id="pdfArrangementReview"></textarea>
+      </div>
+      <div>
+        <label for="pdfPieceReview">Detected piece definition</label>
+        <textarea id="pdfPieceReview"></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="dialog-foot">
+    <button class="secondary" id="cancelPdfImport" type="button">Cancel</button>
+    <button id="acceptPdfImport" type="button">Use this import</button>
+  </div>
+</dialog>
+
+<script>
+const HEADER_TOKEN = '(?:verse|chorus|bridge|tag|refrain|intro|outro|pre-?chorus|post-?chorus|interlude|ending|instrumental|vamp|coda|turnaround)\\s*\\d*';
+const HEADER_LINE_RE = new RegExp('^(?:' + HEADER_TOKEN + '|\\{[^}\\n]+\\})$', 'i');
+const DRAFT_KEY = 'proclaim-song-builder-v2-draft';
+const LONG_LINE_LIMIT = 52;
+
+function normalizeLineBreaks(text) {
+  return text.replace(/\u2028|\u2029/g, '\n');
+}
+
+function trimSections(sections) {
+  for (const key in sections) {
+    const arr = sections[key].lines;
+    while (arr.length && arr[0].trim() === '') arr.shift();
+    while (arr.length && arr[arr.length - 1].trim() === '') arr.pop();
+  }
+}
+
+function parseStrict(text) {
+  const sections = {};
+  let current = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (HEADER_LINE_RE.test(line)) {
+      current = { label: line, lines: [] };
+      sections[line.toLowerCase()] = current;
+    } else if (current) {
+      current.lines.push(raw.trimEnd());
+    }
+  }
+  trimSections(sections);
+  return sections;
+}
+
+function parseFlattened(text) {
+  const globalRe = new RegExp('\\b(' + HEADER_TOKEN + ')\\b', 'gi');
+  const matches = [...text.matchAll(globalRe)];
+  const sections = {};
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const label = match[1].replace(/\s+/g, ' ').trim();
+    const start = match.index + match[0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    const body = text.slice(start, end).replace(/[ \t\u00A0]{2,}/g, '\n\n');
+    const lines = body.split(/\r?\n/).map(line => line.trim());
+    sections[label.toLowerCase()] = { label, lines };
+  }
+  trimSections(sections);
+  return sections;
+}
+
+function parsePiece(text) {
+  const normalized = normalizeLineBreaks(text);
+  const strict = parseStrict(normalized);
+  if (Object.keys(strict).length >= 2) return strict;
+  const loose = parseFlattened(normalized);
+  return Object.keys(loose).length > Object.keys(strict).length ? loose : strict;
+}
+
+function parseArrangement(text) {
+  return text.split(',').map(token => token.trim()).filter(Boolean);
+}
+
+function splitSectionIntoSlides(lines, maxLines, suggestBreaks) {
+  const slides = [];
+  let current = [];
+  const pushCurrent = () => {
+    if (current.length) slides.push(current);
+    current = [];
+  };
+
+  for (const raw of lines) {
+    if (raw.trim() === '') {
+      pushCurrent();
+      continue;
+    }
+    current.push(raw.trimEnd());
+    if (suggestBreaks && current.length >= maxLines) pushCurrent();
+  }
+  pushCurrent();
+  return slides.length ? slides : [[]];
+}
+
+function displayLabel(label) {
+  return label.startsWith('{') ? label : label.replace(/\s+/g, ' ').toUpperCase();
+}
+
+function formatPieceBody(sections, maxLines, suggestBreaks) {
+  return Object.values(sections).map(section => {
+    const slides = splitSectionIntoSlides(section.lines, maxLines, suggestBreaks);
+    return displayLabel(section.label) + '\n' + slides.map(lines => lines.join('\n')).join('\n\n');
+  }).join('\n\n');
+}
+
+function createArrangedText(sections, tokens, maxLines, suggestBreaks, showLabels = true) {
+  const blocks = [];
+  for (const token of tokens) {
+    if (token.toLowerCase() === 'blank') {
+      blocks.push('· BLANK ·');
+      continue;
+    }
+    const section = sections[token.toLowerCase()];
+    if (!section) {
+      blocks.push('⚠ "' + token + '" not found');
+      continue;
+    }
+    const slides = splitSectionIntoSlides(section.lines, maxLines, suggestBreaks);
+    const body = slides.map(lines => lines.join('\n')).join('\n\n');
+    blocks.push((showLabels ? displayLabel(section.label) + '\n' : '') + body);
+  }
+  return blocks.join('\n\n');
+}
+
+const ids = [
+  'songTitle', 'arrangementName', 'songKey', 'songId', 'author', 'copyright',
+  'groups', 'notes', 'arrangement', 'piece', 'maxLines', 'smartBreaks'
+];
+const fields = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+const slidePreviewEl = document.getElementById('slidePreview');
+const outputEl = document.getElementById('output');
+const exportPreviewEl = document.getElementById('exportPreview');
+const preflightListEl = document.getElementById('preflightList');
+const preflightSummaryEl = document.getElementById('preflightSummary');
+const saveStatusEl = document.getElementById('saveStatus');
+const pdfStatusEl = document.getElementById('pdfStatus');
+let saveTimer = null;
+let currentExportText = '';
+
+function buildProclaimExport(sections, tokens, maxLines, suggestBreaks) {
+  const noteParts = [];
+  if (fields.arrangementName.value.trim()) noteParts.push('Arrangement: ' + fields.arrangementName.value.trim());
+  if (fields.songKey.value.trim()) noteParts.push('Key: ' + fields.songKey.value.trim());
+  if (fields.notes.value.trim()) noteParts.push(fields.notes.value.trim());
+
+  const metadata = [
+    'Title: ' + fields.songTitle.value.trim(),
+    'Author: ' + fields.author.value.trim(),
+    'Copyright: ' + fields.copyright.value.trim(),
+    'CCLI:',
+    'Song ID: ' + fields.songId.value.trim(),
+    'Hymnal:',
+    'Notes: ' + noteParts.join(' | '),
+    'Groups: ' + fields.groups.value.trim(),
+    'PlayOrder: ' + tokens.join(', ')
+  ];
+  return metadata.join('\n') + '\n\n' + formatPieceBody(sections, maxLines, suggestBreaks);
+}
+
+function buildSlidePlan(sections, tokens, maxLines, suggestBreaks) {
+  const plan = [];
+  for (const token of tokens) {
+    if (token.toLowerCase() === 'blank') {
+      plan.push({ label: 'Blank', lines: [], blank: true, warnings: [] });
+      continue;
+    }
+    const section = sections[token.toLowerCase()];
+    if (!section) {
+      plan.push({
+        label: token,
+        lines: ['Section not found'],
+        missing: true,
+        warnings: ['Missing section']
+      });
+      continue;
+    }
+    const slides = splitSectionIntoSlides(section.lines, maxLines, suggestBreaks);
+    slides.forEach((lines, index) => {
+      const warnings = [];
+      if (lines.length > maxLines) warnings.push(lines.length + ' lines');
+      if (lines.some(line => line.length > LONG_LINE_LIMIT)) warnings.push('Long lyric line');
+      if (!lines.some(line => line.trim())) warnings.push('Empty section');
+      plan.push({
+        label: section.label,
+        sequence: slides.length > 1 ? (index + 1) + '/' + slides.length : '',
+        lines,
+        warnings
+      });
+    });
+  }
+  return plan;
+}
+
+function validateSong(sections, tokens, plan) {
+  const issues = [];
+  const add = (level, text) => issues.push({ level, text });
+  if (!fields.songTitle.value.trim()) add('error', 'Add a song title before exporting.');
+  if (!Object.keys(sections).length) add('error', 'No labelled lyric sections were found.');
+  if (!tokens.length) add('error', 'Add at least one item to the arrangement.');
+
+  const missing = [...new Set(tokens.filter(token => {
+    return token.toLowerCase() !== 'blank' && !sections[token.toLowerCase()];
+  }))];
+  if (missing.length) add('error', 'Arrangement sections not found: ' + missing.join(', ') + '.');
+
+  if (!fields.author.value.trim()) add('warning', 'Author or contributor information is blank.');
+  if (!fields.copyright.value.trim()) add('warning', 'Copyright information is blank.');
+  const songId = fields.songId.value.trim();
+  if (!songId) add('warning', 'CCLI Song ID is blank.');
+  else if (!/^\d+$/.test(songId)) add('warning', 'CCLI Song ID normally contains digits only.');
+
+  const longLineCount = plan.reduce((count, slide) => {
+    return count + slide.lines.filter(line => line.length > LONG_LINE_LIMIT).length;
+  }, 0);
+  if (longLineCount) {
+    add('warning', longLineCount + ' lyric line' + (longLineCount === 1 ? ' may be' : 's may be') + ' too long for the selected theme.');
+  }
+
+  if (!issues.some(issue => issue.level === 'error')) {
+    add('good', 'The song can be exported. Review any remaining warnings first.');
+  }
+  return issues;
+}
+
+function renderSlides(plan) {
+  slidePreviewEl.replaceChildren();
+  if (!plan.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'Add an arrangement and labelled lyrics to preview the song.';
+    slidePreviewEl.appendChild(empty);
+    return;
+  }
+
+  plan.forEach((item, index) => {
+    const card = document.createElement('article');
+    card.className = 'slide' + (item.blank ? ' blank' : '') + (item.warnings.length ? ' warn' : '');
+
+    const number = document.createElement('span');
+    number.className = 'slide-number';
+    number.textContent = String(index + 1);
+    card.appendChild(number);
+
+    const label = document.createElement('div');
+    label.className = 'slide-label';
+    label.textContent = displayLabel(item.label) + (item.sequence ? ' · ' + item.sequence : '');
+    card.appendChild(label);
+
+    const lines = document.createElement('div');
+    lines.className = 'slide-lines';
+    lines.textContent = item.blank ? 'BLANK' : item.lines.join('\n');
+    card.appendChild(lines);
+
+    const warning = document.createElement('div');
+    warning.className = 'slide-warning';
+    warning.textContent = item.warnings.join(' · ');
+    card.appendChild(warning);
+    slidePreviewEl.appendChild(card);
+  });
+}
+
+function renderPreflight(issues) {
+  preflightListEl.replaceChildren();
+  const errors = issues.filter(issue => issue.level === 'error').length;
+  const warnings = issues.filter(issue => issue.level === 'warning').length;
+  preflightSummaryEl.textContent = errors
+    ? errors + ' problem' + (errors === 1 ? '' : 's')
+    : warnings
+      ? warnings + ' warning' + (warnings === 1 ? '' : 's')
+      : 'Ready';
+
+  for (const issue of issues) {
+    const item = document.createElement('li');
+    item.className = 'issue ' + issue.level;
+    item.textContent = issue.text;
+    preflightListEl.appendChild(item);
+  }
+}
+
+function generate({ save = true } = {}) {
+  const sections = parsePiece(fields.piece.value);
+  const tokens = parseArrangement(fields.arrangement.value);
+  const maxLines = Number(fields.maxLines.value) || 2;
+  const suggestBreaks = fields.smartBreaks.checked;
+  const plan = buildSlidePlan(sections, tokens, maxLines, suggestBreaks);
+
+  renderSlides(plan);
+  renderPreflight(validateSong(sections, tokens, plan));
+  outputEl.textContent = tokens.length
+    ? createArrangedText(sections, tokens, maxLines, suggestBreaks)
+    : 'Enter an arrangement above.';
+  currentExportText = buildProclaimExport(sections, tokens, maxLines, suggestBreaks);
+  exportPreviewEl.textContent = currentExportText;
+  if (save) scheduleSave();
+}
+
+function collectDraft() {
+  const state = {};
+  for (const id of ids) {
+    const el = fields[id];
+    state[id] = el.type === 'checkbox' ? el.checked : el.value;
+  }
+  return state;
+}
+
+function applyDraft(state) {
+  for (const id of ids) {
+    if (!(id in state)) continue;
+    const el = fields[id];
+    if (el.type === 'checkbox') el.checked = Boolean(state[id]);
+    else el.value = state[id];
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveStatusEl.textContent = 'Saving draft…';
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(collectDraft()));
+      saveStatusEl.textContent = 'Draft saved on this device';
+    } catch {
+      saveStatusEl.textContent = 'Draft could not be saved';
+    }
+  }, 350);
+}
+
+function restoreDraft() {
+  try {
+    const saved = localStorage.getItem(DRAFT_KEY);
+    if (!saved) return false;
+    applyDraft(JSON.parse(saved));
+    saveStatusEl.textContent = 'Draft restored';
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function copyText(text, successMessage) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const helper = document.createElement('textarea');
+    helper.value = text;
+    helper.style.position = 'fixed';
+    helper.style.opacity = '0';
+    document.body.appendChild(helper);
+    helper.select();
+    document.execCommand('copy');
+    helper.remove();
+  }
+  saveStatusEl.textContent = successMessage;
+}
+
+function safeFilename(value) {
+  return (value || 'proclaim-song')
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase() || 'proclaim-song';
+}
+
+document.getElementById('copyProclaim').addEventListener('click', () => {
+  copyText(currentExportText, 'Proclaim text copied');
+});
+
+document.getElementById('copyOrder').addEventListener('click', () => {
+  copyText(parseArrangement(fields.arrangement.value).join(', '), 'Verse order copied');
+});
+
+document.getElementById('downloadProclaim').addEventListener('click', () => {
+  const blob = new Blob([currentExportText], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = safeFilename(fields.songTitle.value) + '.txt';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  saveStatusEl.textContent = 'Proclaim file downloaded';
+});
+
+document.getElementById('applyBreaks').addEventListener('click', () => {
+  const sections = parsePiece(fields.piece.value);
+  if (!Object.keys(sections).length) {
+    saveStatusEl.textContent = 'No labelled sections to format';
+    return;
+  }
+  fields.piece.value = formatPieceBody(sections, Number(fields.maxLines.value) || 2, true);
+  generate();
+  saveStatusEl.textContent = 'Suggested slide breaks applied';
+});
+
+const whitespaceDebugEl = document.getElementById('whitespaceDebug');
+document.getElementById('inspectWhitespace').addEventListener('click', event => {
+  const isVisible = !whitespaceDebugEl.hidden;
+  whitespaceDebugEl.hidden = isVisible;
+  fields.piece.hidden = !isVisible;
+  event.currentTarget.textContent = isVisible ? 'Inspect whitespace' : 'Edit lyrics';
+  if (!isVisible) whitespaceDebugEl.innerHTML = annotateWhitespace(fields.piece.value);
+});
+
+document.getElementById('fixLineBreaks').addEventListener('click', () => {
+  fields.piece.value = normalizeLineBreaks(fields.piece.value);
+  generate();
+  saveStatusEl.textContent = 'Hidden line breaks restored';
+});
+
+function annotateWhitespace(text) {
+  let html = '';
+  for (const ch of text) {
+    const code = ch.codePointAt(0);
+    if (code === 0x0A) html += '\n';
+    else if (code === 0x20) html += '<mark class="sp" title="regular space (U+0020)">&middot;</mark>';
+    else if (code === 0xA0) html += '<mark class="nbsp" title="non-breaking space (U+00A0)">NBSP</mark>';
+    else if (code === 0x09) html += '<mark class="tab" title="tab (U+0009)">TAB</mark>';
+    else if (code < 0x20 || code === 0x2028 || code === 0x2029 || code === 0xFEFF || (code >= 0x2000 && code <= 0x200F)) {
+      const label = 'U+' + code.toString(16).toUpperCase().padStart(4, '0');
+      html += '<mark class="other" title="' + label + '">' + label + '</mark>';
+    } else {
+      html += ch.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  }
+  return html;
+}
+
+const EXAMPLE = {
+  songTitle: 'Example Worship Song',
+  arrangementName: 'Sunday main',
+  songKey: 'D',
+  songId: '1234567',
+  author: 'Example Writer',
+  copyright: '© Example Publisher',
+  groups: 'Sunday Worship',
+  notes: 'Two-line lyric slides',
+  arrangement: 'Blank, Verse 1, Chorus, Verse 2, Chorus, Bridge, Chorus, Tag, Blank',
+  piece: `Verse 1
+This is the first line of verse one
+This is the second line of verse one
+
+Verse 2
+This is the first line of verse two
+This is the second line of verse two
+
+Chorus
+This is the first line of the chorus
+This is the second line of the chorus
+
+Bridge
+This is the first line of the bridge
+This is the second line of the bridge
+
+Tag
+This is the tag line, repeated for emphasis`,
+  maxLines: '2',
+  smartBreaks: true
+};
+
+document.getElementById('loadExample').addEventListener('click', () => {
+  applyDraft(EXAMPLE);
+  generate();
+  saveStatusEl.textContent = 'Example loaded';
+});
+
+document.getElementById('clearAll').addEventListener('click', () => {
+  if (!confirm('Clear the current song and its saved draft?')) return;
+  for (const id of ids) {
+    const el = fields[id];
+    if (el.type === 'checkbox') el.checked = id === 'smartBreaks';
+    else el.value = id === 'maxLines' ? '2' : '';
+  }
+  localStorage.removeItem(DRAFT_KEY);
+  generate({ save: false });
+  saveStatusEl.textContent = 'Draft cleared';
+});
+
+for (const id of ids) {
+  fields[id].addEventListener('input', generate);
+  fields[id].addEventListener('change', generate);
+}
+
+// ---- PDF import and review ----
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function extractColoredLines(pdf) {
+  const allLines = [];
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const scale = 3;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    await page.render({ canvasContext: context, viewport }).promise;
+    const textContent = await page.getTextContent();
+
+    const items = textContent.items
+      .filter(item => item.str.trim().length > 0)
+      .map(item => {
+        const combined = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        const x = combined[4];
+        const yBaseline = combined[5];
+        const fontHeight = Math.hypot(combined[2], combined[3]) || 10;
+        const width = Math.max(2, Math.round((item.width || 0) * scale));
+        const height = Math.max(2, Math.round(fontHeight * 1.1));
+        const boxX = Math.max(0, Math.round(x));
+        const boxY = Math.max(0, Math.round(yBaseline - fontHeight));
+        const boxWidth = Math.min(width, canvas.width - boxX);
+        const boxHeight = Math.min(height, canvas.height - boxY);
+        let isRed = false;
+
+        if (boxWidth > 0 && boxHeight > 0) {
+          const pixels = context.getImageData(boxX, boxY, boxWidth, boxHeight).data;
+          let sumR = 0;
+          let sumG = 0;
+          let sumB = 0;
+          let count = 0;
+          for (let i = 0; i < pixels.length; i += 4) {
+            const red = pixels[i];
+            const green = pixels[i + 1];
+            const blue = pixels[i + 2];
+            if (red > 250 && green > 250 && blue > 250) continue;
+            sumR += red;
+            sumG += green;
+            sumB += blue;
+            count++;
+          }
+          if (count) {
+            const averageR = sumR / count;
+            const averageG = sumG / count;
+            const averageB = sumB / count;
+            isRed = averageR - averageG > 20 && averageR - averageB > 20;
+          }
+        }
+        return { str: item.str, x, y: yBaseline, isRed };
+      });
+
+    items.sort((a, b) => a.y - b.y);
+    const rows = [];
+    for (const item of items) {
+      const row = rows.find(candidate => Math.abs(item.y - candidate.y) < 4);
+      if (row) row.items.push(item);
+      else rows.push({ y: item.y, items: [item] });
+    }
+    for (const row of rows) {
+      row.items.sort((a, b) => a.x - b.x);
+      allLines.push({
+        page: pageNum,
+        y: row.y,
+        spans: row.items.map(item => ({ text: item.str, isRed: item.isRed }))
+      });
+    }
+  }
+  return allLines;
+}
+
+function parsePdfLines(lines) {
+  const segments = [];
+  let current = null;
+  for (const line of lines) {
+    const fullText = line.spans.map(span => span.text).join(' ').replace(/\s+/g, ' ').trim();
+    const allRed = line.spans.length && line.spans.every(span => span.isRed);
+    const headerMatch = allRed && fullText.match(/^\[(.+)\]$/);
+    if (headerMatch) {
+      const inner = headerMatch[1];
+      const colonIndex = inner.indexOf(':');
+      const label = (colonIndex === -1 ? inner : inner.slice(0, colonIndex)).trim();
+      current = { label, lines: [], page: line.page };
+      segments.push(current);
+      continue;
+    }
+    const blackText = line.spans
+      .filter(span => !span.isRed)
+      .map(span => span.text)
+      .join('')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (blackText && current) current.lines.push(blackText);
+  }
+  return segments;
+}
+
+function buildProclaimText(segments) {
+  const variantsByLabel = new Map();
+  const pieceOrder = [];
+  const arrangementTokens = [];
+
+  for (const segment of segments) {
+    const body = segment.lines.join('\n').trim();
+    if (!variantsByLabel.has(segment.label)) variantsByLabel.set(segment.label, []);
+    const variants = variantsByLabel.get(segment.label);
+    let match = variants.find(variant => variant.body === body);
+    if (!match) {
+      const variantLabel = variants.length === 0 ? segment.label : segment.label + ' ' + (variants.length + 1);
+      match = { body, variantLabel };
+      variants.push(match);
+      pieceOrder.push({ label: variantLabel, lines: segment.lines });
+    }
+    arrangementTokens.push(match.variantLabel);
+  }
+
+  return {
+    arrangementText: arrangementTokens.join(', '),
+    pieceText: pieceOrder.map(section => section.label + '\n' + section.lines.join('\n')).join('\n\n')
+  };
+}
+
+const pdfReviewDialog = document.getElementById('pdfReviewDialog');
+const pdfArrangementReview = document.getElementById('pdfArrangementReview');
+const pdfPieceReview = document.getElementById('pdfPieceReview');
+const pdfSegmentSummary = document.getElementById('pdfSegmentSummary');
+let pendingPdfTitle = '';
+
+async function handlePdfFile(file) {
+  pdfStatusEl.textContent = 'Reading PDF…';
+  if (!window.pdfjsLib) {
+    pdfStatusEl.textContent = 'PDF tools could not load. Check your internet connection.';
+    return;
+  }
+  try {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const lines = await extractColoredLines(pdf);
+    const segments = parsePdfLines(lines);
+    if (!segments.length) {
+      pdfStatusEl.textContent = 'No red [Section: Who] headers were found.';
+      return;
+    }
+
+    const result = buildProclaimText(segments);
+    pendingPdfTitle = file.name.replace(/\.pdf$/i, '');
+    pdfArrangementReview.value = result.arrangementText;
+    pdfPieceReview.value = result.pieceText;
+
+    const uniqueSections = new Set(segments.map(segment => segment.label.toLowerCase())).size;
+    const emptySegments = segments.filter(segment => !segment.lines.length).length;
+    pdfSegmentSummary.textContent =
+      'Detected ' + segments.length + ' segment' + (segments.length === 1 ? '' : 's') +
+      ' across ' + pdf.numPages + ' page' + (pdf.numPages === 1 ? '' : 's') +
+      ', using ' + uniqueSections + ' section name' + (uniqueSections === 1 ? '' : 's') +
+      (emptySegments ? '. ' + emptySegments + ' detected segment' + (emptySegments === 1 ? ' has' : 's have') + ' no lyric text.' : '.');
+
+    pdfStatusEl.textContent = 'PDF ready for review';
+    if (typeof pdfReviewDialog.showModal === 'function') pdfReviewDialog.showModal();
+    else pdfReviewDialog.setAttribute('open', '');
+  } catch (error) {
+    pdfStatusEl.textContent = 'Could not read that PDF: ' + error.message;
+  }
+}
+
+document.getElementById('importPdfBtn').addEventListener('click', () => {
+  document.getElementById('pdfInput').click();
+});
+
+document.getElementById('pdfInput').addEventListener('change', event => {
+  const file = event.target.files[0];
+  if (file) handlePdfFile(file);
+  event.target.value = '';
+});
+
+document.getElementById('cancelPdfImport').addEventListener('click', () => {
+  pdfReviewDialog.close();
+  pdfStatusEl.textContent = 'PDF import cancelled';
+});
+
+document.getElementById('acceptPdfImport').addEventListener('click', () => {
+  fields.arrangement.value = pdfArrangementReview.value;
+  fields.piece.value = pdfPieceReview.value;
+  if (!fields.songTitle.value.trim()) fields.songTitle.value = pendingPdfTitle;
+  pdfReviewDialog.close();
+  generate();
+  pdfStatusEl.textContent = 'PDF import added to draft';
+});
+
+restoreDraft();
+generate({ save: false });
+</script>
+</body>
+</html>
