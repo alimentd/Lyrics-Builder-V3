@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lyrics Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d1016;
+    --panel: #171c27;
+    --field: #222938;
+    --card: #10141b;
+    --border: #2a3242;
+    --border-strong: #343d50;
+    --text: #f0f2f7;
+    --muted: #9aa3b5;
+    --accent: #86a4ff;
+    --accent-strong: #7398ff;
+    --warning-bg: #553b13;
+    --warning-text: #f1bd55;
+    --success-bg: #123f2b;
+    --success-text: #65d79a;
+    --danger: #ff7b86;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; margin: 0; background: var(--page); color: var(--text); }
+
+  body {
+    min-height: 100vh;
+    padding: 14px 18px 18px;
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  button, select, textarea { font: inherit; }
+  button {
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    background: #191f2b;
+    color: var(--text);
+    padding: 8px 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+  }
+  button:hover { border-color: #59657d; background: #202735; }
+  button:active { transform: translateY(1px); }
+  button:disabled { cursor: not-allowed; opacity: 0.45; }
+  button.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: white; }
+  button.primary:hover { background: #648bfb; }
+  button.link-button { padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--accent); font-size: 13px; }
+  button.link-button:hover { background: transparent; color: #aac0ff; }
+  button.compact { padding: 6px 9px; border-radius: 8px; font-size: 12px; }
+
+  .app-grid {
+    display: grid;
+    grid-template-columns: minmax(370px, 0.72fr) minmax(560px, 1.08fr);
+    gap: 12px;
+    min-height: calc(100vh - 32px);
+  }
+  .panel {
+    min-width: 0;
+    min-height: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
+  }
+  .editor-panel { display: flex; flex-direction: column; gap: 18px; padding: 16px; }
+  .preview-panel { display: flex; flex-direction: column; gap: 14px; padding: 16px; overflow: hidden; }
+  .field-block { display: flex; flex-direction: column; min-height: 0; }
+  .piece-block { flex: 1 1 auto; }
+  .field-heading, .preview-heading, .preflight-title, .export-actions, .utility-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .field-heading, .preview-heading { justify-content: space-between; margin-bottom: 7px; }
+  .field-heading strong, .preview-heading h1, .preflight-title strong { margin: 0; font-size: 14px; font-weight: 800; }
+  .preview-heading h1 { font-size: 17px; }
+  .label-note { color: var(--muted); font-size: 12px; font-weight: 600; }
+  .utility-actions { justify-content: flex-end; flex-wrap: wrap; }
+
+  textarea, select { color: var(--text); background: var(--field); border: 1px solid var(--border-strong); outline: none; }
+  textarea:focus, select:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 2px rgba(115,152,255,0.14); }
+  textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 9px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.38;
+  }
+  #arrangement { min-height: 79px; }
+  #piece { flex: 1 1 auto; min-height: 400px; resize: none; }
+  #whitespaceDebug {
+    flex: 1 1 auto;
+    min-height: 400px;
+    margin: 0;
+    overflow: auto;
+    padding: 11px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    background: var(--field);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    white-space: pre-wrap;
+  }
+  #whitespaceDebug mark { color: inherit; border-radius: 2px; }
+  #whitespaceDebug mark.sp { background: transparent; color: #798397; }
+  #whitespaceDebug mark.nbsp { background: rgba(115,152,255,0.26); }
+  #whitespaceDebug mark.tab { background: rgba(255,123,134,0.26); }
+  #whitespaceDebug mark.other { background: rgba(241,189,85,0.28); }
+  .pdf-status { min-height: 18px; margin-top: 7px; color: var(--muted); font-size: 12px; }
+
+  .preview-heading { align-items: flex-start; margin-bottom: 0; }
+  .preview-subtitle { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .preview-controls { display: flex; align-items: flex-end; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+  .select-wrap { display: flex; flex-direction: column; gap: 4px; color: var(--text); font-size: 12px; font-weight: 700; }
+  select { min-width: 94px; padding: 8px 30px 8px 10px; border-radius: 8px; }
+  .checkbox-row { display: flex; align-items: center; gap: 7px; padding-bottom: 8px; color: var(--text); font-size: 13px; font-weight: 700; white-space: nowrap; }
+  input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent-strong); }
+
+  .preflight { flex: 0 0 auto; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #202634; }
+  .preflight-title { justify-content: space-between; margin-bottom: 10px; }
+  #warningCount { color: var(--muted); font-size: 12px; }
+  .check-list { display: grid; gap: 6px; }
+  .check-message { padding: 7px 9px; border-radius: 6px; font-size: 12px; }
+  .check-message.warning { background: var(--warning-bg); color: var(--warning-text); }
+  .check-message.success { background: var(--success-bg); color: var(--success-text); }
+
+  .slides-shell { flex: 1 1 auto; min-height: 260px; overflow: hidden; }
+  .slides-scroll { height: 100%; overflow-y: auto; padding-right: 5px; scrollbar-color: #76776f #292f3b; scrollbar-width: auto; }
+  .slides-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .slide-card {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 16 / 9;
+    min-height: 140px;
+    overflow: hidden;
+    padding: 34px 18px 22px;
+    border: 1px solid #2a303d;
+    border-radius: 11px;
+    background: var(--card);
+  }
+  .slide-label { position: absolute; top: 13px; left: 14px; color: var(--accent); font-size: 11px; font-weight: 900; letter-spacing: 0.025em; text-transform: uppercase; }
+  .slide-number { position: absolute; top: 10px; right: 11px; color: #737d90; font-size: 11px; }
+  .slide-text { width: 100%; color: #f6f7fb; font-size: clamp(13px, 1.05vw, 17px); font-weight: 600; line-height: 1.25; text-align: center; white-space: pre-wrap; }
+  .slide-card.blank .slide-text { color: #747d90; font-size: 11px; font-weight: 800; letter-spacing: 0.22em; }
+  .empty-preview { display: grid; min-height: 220px; place-items: center; border: 1px dashed var(--border-strong); border-radius: 11px; color: var(--muted); text-align: center; }
+
+  .export-area { flex: 0 0 auto; padding-top: 12px; border-top: 1px solid var(--border); }
+  .export-actions { flex-wrap: wrap; }
+  .export-status { min-height: 18px; margin: 7px 0 0; color: var(--success-text); font-size: 12px; }
+  details { margin-top: 5px; }
+  summary { color: var(--accent); cursor: pointer; font-size: 13px; font-weight: 750; }
+  details pre { max-height: 180px; margin: 8px 0 0; overflow: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: #d8dde8; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+
+  @media (max-width: 1180px) {
+    .app-grid { grid-template-columns: minmax(340px, 0.82fr) minmax(500px, 1.18fr); }
+    .slides-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    body { padding: 10px; }
+    .app-grid { display: flex; min-height: auto; flex-direction: column; }
+    .editor-panel, .preview-panel { min-height: 720px; }
+    #piece, #whitespaceDebug { min-height: 450px; }
+  }
+  @media (max-width: 600px) {
+    .slides-grid { grid-template-columns: 1fr; }
+    .preview-heading { flex-direction: column; }
+    .preview-controls { justify-content: flex-start; }
+    .field-heading { align-items: flex-start; }
+    .utility-actions { justify-content: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<main class="app-grid">
+  <section class="panel editor-panel" aria-label="Lyrics editor">
+    <div class="field-block">
+      <div class="field-heading">
+        <strong>Arrangement <span class="label-note">(comma-separated)</span></strong>
+        <div class="utility-actions">
+          <button class="compact" id="importPdfBtn" type="button">Import PDF</button>
+          <button class="compact" id="loadExample" type="button">Example</button>
+          <button class="compact" id="clearAll" type="button">Clear</button>
+          <input type="file" id="pdfInput" accept="application/pdf" hidden>
+        </div>
+      </div>
+      <textarea id="arrangement" spellcheck="false" placeholder="Blank, Verse 1, Chorus, Verse 2, Chorus, Blank"></textarea>
+      <div class="pdf-status" id="pdfStatus" role="status"></div>
+    </div>
+
+    <div class="field-block piece-block">
+      <div class="field-heading">
+        <strong>Piece definition <span class="label-note">(labelled sections)</span></strong>
+        <div class="utility-actions">
+          <button class="link-button" id="inspectWhitespace" type="button">Inspect whitespace</button>
+          <button class="link-button" id="fixLineBreaks" type="button">Restore hidden breaks</button>
+        </div>
+      </div>
+      <textarea id="piece" spellcheck="false" placeholder="Verse 1&#10;Lyric line one&#10;Lyric line two&#10;&#10;Chorus&#10;Chorus lyric line"></textarea>
+      <pre id="whitespaceDebug" hidden></pre>
+    </div>
+  </section>
+
+  <section class="panel preview-panel" aria-label="Slide preview">
+    <div class="preview-heading">
+      <div>
+        <h1>Slide preview</h1>
+        <p class="preview-subtitle">Warnings are estimates; the selected Proclaim theme still controls final fit.</p>
+      </div>
+      <div class="preview-controls">
+        <label class="select-wrap" for="linesPerSlide">Lines per slide
+          <select id="linesPerSlide">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+        <label class="checkbox-row"><input type="checkbox" id="suggestBreaks" checked>Suggest breaks</label>
+        <button id="applyBreaks" type="button">Apply breaks</button>
+      </div>
+    </div>
+
+    <div class="preflight">
+      <div class="preflight-title"><strong>Preflight check</strong><span id="warningCount">0 warnings</span></div>
+      <div class="check-list" id="preflightMessages"></div>
+    </div>
+
+    <div class="slides-shell">
+      <div class="slides-scroll"><div class="slides-grid" id="slidesGrid"></div></div>
+    </div>
+
+    <div class="export-area">
+      <div class="export-actions">
+        <button class="primary" id="copyProclaim" type="button">Copy Proclaim text</button>
+        <button id="downloadText" type="button">Download .txt</button>
+        <button id="copyOrder" type="button">Copy verse order</button>
+      </div>
+      <p class="export-status" id="exportStatus" role="status"></p>
+      <details><summary>View arranged lyrics</summary><pre id="arrangedLyrics"></pre></details>
+      <details><summary>View Proclaim import file</summary><pre id="proclaimImport"></pre></details>
+    </div>
+  </section>
+</main>
+
+<script>
+const HEADER_TOKEN = '(?:verse|chorus|bridge|tag|refrain|intro|outro|pre-?chorus|post-?chorus|interlude|ending|instrumental|vamp|coda|turnaround)\\s*\\d*';
+const HEADER_LINE_RE = new RegExp('^' + HEADER_TOKEN + '$', 'i');
+const OPTIONAL_VOCALS_RE = /\boptional\s+vocals?\b/i;
+const PDF_SECTION_HEADER_RE = new RegExp('^\\s*(' + HEADER_TOKEN + ')(?=\\s|:|\\]|$)', 'i');
+
+const arrangementEl = document.getElementById('arrangement');
+const pieceEl = document.getElementById('piece');
+const linesPerSlideEl = document.getElementById('linesPerSlide');
+const suggestBreaksEl = document.getElementById('suggestBreaks');
+const slidesGridEl = document.getElementById('slidesGrid');
+const preflightMessagesEl = document.getElementById('preflightMessages');
+const warningCountEl = document.getElementById('warningCount');
+const arrangedLyricsEl = document.getElementById('arrangedLyrics');
+const proclaimImportEl = document.getElementById('proclaimImport');
+const exportStatusEl = document.getElementById('exportStatus');
+const whitespaceDebugEl = document.getElementById('whitespaceDebug');
+
+function normalizeLineBreaks(text) { return text.replace(/\u2028|\u2029/g, '\n'); }
+
+function trimSections(sections) {
+  for (const key in sections) {
+    const lines = sections[key].lines;
+    while (lines.length && lines[0].trim() === '') lines.shift();
+    while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+  }
+}
+
+function parseStrict(text) {
+  const sections = {};
+  let current = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (HEADER_LINE_RE.test(line)) {
+      current = { label: line, lines: [] };
+      sections[line.toLowerCase()] = current;
+    } else if (current) {
+      current.lines.push(raw.trimEnd());
+    }
+  }
+  trimSections(sections);
+  return sections;
+}
+
+function parseFlattened(text) {
+  const globalRe = new RegExp('\\b(' + HEADER_TOKEN + ')\\b', 'gi');
+  const matches = [...text.matchAll(globalRe)];
+  const sections = {};
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const label = match[1].replace(/\s+/g, ' ').trim();
+    const start = match.index + match[0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    const body = text.slice(start, end).replace(/[ \t\u00a0]{2,}/g, '\n\n');
+    sections[label.toLowerCase()] = { label, lines: body.split(/\r?\n/).map(line => line.trim()) };
+  }
+  trimSections(sections);
+  return sections;
+}
+
+function parsePiece(text) {
+  const normalized = normalizeLineBreaks(text);
+  const strict = parseStrict(normalized);
+  if (Object.keys(strict).length >= 2 || normalized.includes('\n')) return strict;
+  const loose = parseFlattened(normalized);
+  return Object.keys(loose).length > Object.keys(strict).length ? loose : strict;
+}
+
+function parseArrangement(text) { return text.split(',').map(value => value.trim()).filter(Boolean); }
+
+function groupExplicitSlides(lines) {
+  const groups = [];
+  let current = [];
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      if (current.length) groups.push(current);
+      current = [];
+    } else current.push(line);
+  }
+  if (current.length) groups.push(current);
+  return groups;
+}
+
+function makeSlideChunks(lines, limit, suggest) {
+  const groups = groupExplicitSlides(lines);
+  const chunks = [];
+  for (const group of groups) {
+    if (!suggest) chunks.push(group);
+    else for (let i = 0; i < group.length; i += limit) chunks.push(group.slice(i, i + limit));
+  }
+  return chunks.length ? chunks : [[]];
+}
+
+function buildSlides(sections, tokens, linesPerSlide, suggest) {
+  const slides = [];
+  const missing = [];
+  for (const token of tokens) {
+    if (token.toLowerCase() === 'blank') {
+      slides.push({ label: 'Blank', lines: [], part: 1, total: 1, blank: true });
+      continue;
+    }
+    const section = sections[token.toLowerCase()];
+    if (!section) { missing.push(token); continue; }
+    const chunks = makeSlideChunks(section.lines, linesPerSlide, suggest);
+    chunks.forEach((lines, index) => slides.push({ label: section.label, lines, part: index + 1, total: chunks.length, blank: false }));
+  }
+  return { slides, missing };
+}
+
+function renderSlides(slides) {
+  slidesGridEl.innerHTML = '';
+  if (!slides.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-preview';
+    empty.textContent = 'Enter an arrangement and piece definition, or import a PDF.';
+    slidesGridEl.appendChild(empty);
+    return;
+  }
+  slides.forEach((slide, index) => {
+    const card = document.createElement('article');
+    card.className = 'slide-card' + (slide.blank ? ' blank' : '');
+    const label = document.createElement('div');
+    label.className = 'slide-label';
+    label.textContent = slide.blank ? 'Blank' : slide.label + (slide.total > 1 ? ` · ${slide.part}/${slide.total}` : '');
+    const number = document.createElement('div');
+    number.className = 'slide-number';
+    number.textContent = index + 1;
+    const text = document.createElement('div');
+    text.className = 'slide-text';
+    text.textContent = slide.blank ? 'BLANK' : slide.lines.join('\n');
+    card.append(label, number, text);
+    slidesGridEl.appendChild(card);
+  });
+}
+
+function buildArrangedLyrics(slides) {
+  return slides.map(slide => {
+    if (slide.blank) return '[Blank]';
+    const part = slide.total > 1 ? ` ${slide.part}/${slide.total}` : '';
+    return `[${slide.label}${part}]\n${slide.lines.join('\n')}`;
+  }).join('\n\n');
+}
+
+function buildProclaimImport(slides, verseOrder) {
+  const arranged = slides.map(slide => slide.blank ? '' : slide.lines.join('\n')).join('\n\n');
+  return `Verse order: ${verseOrder}\n\n${arranged}`.trim();
+}
+
+function renderPreflight(tokens, sections, missing, slides) {
+  const warnings = [];
+  if (!tokens.length) warnings.push('Arrangement is blank.');
+  if (tokens.some(token => token.toLowerCase() !== 'blank') && !Object.keys(sections).length) warnings.push('No labelled lyric sections were found.');
+  [...new Set(missing)].forEach(label => warnings.push(`“${label}” is in the arrangement but not the piece definition.`));
+  if (slides.some(slide => !slide.blank && slide.lines.length > 4)) warnings.push('One or more slides may contain too many lines for comfortable reading.');
+  warningCountEl.textContent = `${warnings.length} warning${warnings.length === 1 ? '' : 's'}`;
+  preflightMessagesEl.innerHTML = '';
+  warnings.forEach(message => {
+    const item = document.createElement('div');
+    item.className = 'check-message warning';
+    item.textContent = message;
+    preflightMessagesEl.appendChild(item);
+  });
+  const ready = document.createElement('div');
+  ready.className = 'check-message success';
+  ready.textContent = warnings.length ? 'The song can be exported. Review any remaining warnings first.' : 'The song is ready to export.';
+  preflightMessagesEl.appendChild(ready);
+}
+
+function generate() {
+  const sections = parsePiece(pieceEl.value);
+  const tokens = parseArrangement(arrangementEl.value);
+  const result = buildSlides(sections, tokens, Number(linesPerSlideEl.value) || 2, suggestBreaksEl.checked);
+  renderSlides(result.slides);
+  renderPreflight(tokens, sections, result.missing, result.slides);
+  arrangedLyricsEl.textContent = buildArrangedLyrics(result.slides);
+  proclaimImportEl.textContent = buildProclaimImport(result.slides, arrangementEl.value.trim());
+  document.getElementById('copyProclaim').disabled = result.slides.length === 0;
+  document.getElementById('downloadText').disabled = result.slides.length === 0;
+  document.getElementById('copyOrder').disabled = tokens.length === 0;
+}
+
+function applySuggestedBreaks() {
+  const limit = Number(linesPerSlideEl.value) || 2;
+  const sourceLines = normalizeLineBreaks(pieceEl.value).split(/\r?\n/);
+  const result = [];
+  let lyricCount = 0;
+  for (let i = 0; i < sourceLines.length; i++) {
+    const line = sourceLines[i];
+    const trimmed = line.trim();
+    if (HEADER_LINE_RE.test(trimmed)) {
+      lyricCount = 0;
+      if (result.length && result[result.length - 1] !== '') result.push('');
+      result.push(trimmed);
+      continue;
+    }
+    if (!trimmed) {
+      lyricCount = 0;
+      if (result[result.length - 1] !== '') result.push('');
+      continue;
+    }
+    result.push(line.trimEnd());
+    lyricCount++;
+    const next = (sourceLines[i + 1] || '').trim();
+    if (lyricCount >= limit && next && !HEADER_LINE_RE.test(next)) {
+      result.push('');
+      lyricCount = 0;
+    }
+  }
+  while (result.length && result[result.length - 1] === '') result.pop();
+  pieceEl.value = result.join('\n');
+  suggestBreaksEl.checked = false;
+  generate();
+  showExportStatus('Suggested breaks applied to the piece definition.');
+}
+
+function annotateWhitespace(text) {
+  let html = '';
+  for (const char of text) {
+    const code = char.codePointAt(0);
+    if (code === 0x0A) html += '\n';
+    else if (code === 0x20) html += '<mark class="sp" title="regular space (U+0020)">·</mark>';
+    else if (code === 0xA0) html += '<mark class="nbsp" title="non-breaking space (U+00A0)">NBSP</mark>';
+    else if (code === 0x09) html += '<mark class="tab" title="tab (U+0009)">TAB</mark>';
+    else if (code < 0x20 || code === 0x2028 || code === 0x2029 || code === 0xFEFF || (code >= 0x2000 && code <= 0x200F)) {
+      const label = 'U+' + code.toString(16).toUpperCase().padStart(4, '0');
+      html += `<mark class="other" title="${label}">${label}</mark>`;
+    } else html += char.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  return html;
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  const helper = document.createElement('textarea');
+  helper.value = text;
+  helper.style.position = 'fixed';
+  helper.style.opacity = '0';
+  document.body.appendChild(helper);
+  helper.select();
+  document.execCommand('copy');
+  helper.remove();
+}
+
+function showExportStatus(message, isError = false) {
+  exportStatusEl.textContent = message;
+  exportStatusEl.style.color = isError ? 'var(--danger)' : 'var(--success-text)';
+  window.clearTimeout(showExportStatus.timer);
+  showExportStatus.timer = window.setTimeout(() => { exportStatusEl.textContent = ''; }, 3500);
+}
+
+const EXAMPLE_ARRANGEMENT = 'Blank, Verse 1, Chorus, Verse 2, Chorus, Bridge, Chorus, Blank';
+const EXAMPLE_PIECE = `Verse 1
+This is the first line of verse one
+This is the second line of verse one
+This is the third line of verse one
+
+Verse 2
+This is the first line of verse two
+This is the second line of verse two
+
+Chorus
+This is the first line of the chorus
+This is the second line of the chorus
+This is the final chorus line
+
+Bridge
+This is the first line of the bridge
+This is the second line of the bridge`;
+
+['input', 'change'].forEach(eventName => {
+  arrangementEl.addEventListener(eventName, generate);
+  pieceEl.addEventListener(eventName, generate);
+});
+linesPerSlideEl.addEventListener('change', generate);
+suggestBreaksEl.addEventListener('change', generate);
+document.getElementById('applyBreaks').addEventListener('click', applySuggestedBreaks);
+
+document.getElementById('inspectWhitespace').addEventListener('click', () => {
+  const showing = !whitespaceDebugEl.hidden;
+  if (showing) {
+    whitespaceDebugEl.hidden = true;
+    pieceEl.hidden = false;
+    document.getElementById('inspectWhitespace').textContent = 'Inspect whitespace';
+  } else {
+    whitespaceDebugEl.innerHTML = annotateWhitespace(pieceEl.value);
+    whitespaceDebugEl.hidden = false;
+    pieceEl.hidden = true;
+    document.getElementById('inspectWhitespace').textContent = 'Edit lyrics';
+  }
+});
+
+document.getElementById('fixLineBreaks').addEventListener('click', () => {
+  pieceEl.value = normalizeLineBreaks(pieceEl.value);
+  generate();
+});
+document.getElementById('loadExample').addEventListener('click', () => {
+  arrangementEl.value = EXAMPLE_ARRANGEMENT;
+  pieceEl.value = EXAMPLE_PIECE;
+  generate();
+});
+document.getElementById('clearAll').addEventListener('click', () => {
+  arrangementEl.value = '';
+  pieceEl.value = '';
+  document.getElementById('pdfStatus').textContent = '';
+  generate();
+});
+
+document.getElementById('copyProclaim').addEventListener('click', async () => {
+  try { await copyText(proclaimImportEl.textContent); showExportStatus('Proclaim text copied.'); }
+  catch (error) { showExportStatus('Could not copy text: ' + error.message, true); }
+});
+document.getElementById('copyOrder').addEventListener('click', async () => {
+  try { await copyText(arrangementEl.value.trim()); showExportStatus('Verse order copied.'); }
+  catch (error) { showExportStatus('Could not copy verse order: ' + error.message, true); }
+});
+document.getElementById('downloadText').addEventListener('click', () => {
+  const blob = new Blob([proclaimImportEl.textContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'lyrics.txt';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showExportStatus('Text file downloaded.');
+});
+
+// PDF import keeps black lyrics, ignores red directions and names, and turns
+// optional-vocal sections into a Blank until the next red song heading.
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+async function extractColoredLines(pdf) {
+  const allLines = [];
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const scale = 3;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const context = canvas.getContext('2d');
+    await page.render({ canvasContext: context, viewport }).promise;
+    const textContent = await page.getTextContent();
+    const items = textContent.items.filter(item => item.str.trim()).map(item => {
+      const combined = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      const x = combined[4];
+      const y = combined[5];
+      const fontHeight = Math.hypot(combined[2], combined[3]) || 10;
+      const width = Math.max(2, Math.round((item.width || 0) * scale));
+      const height = Math.max(2, Math.round(fontHeight * 1.1));
+      const boxX = Math.max(0, Math.round(x));
+      const boxY = Math.max(0, Math.round(y - fontHeight));
+      const boxWidth = Math.min(width, canvas.width - boxX);
+      const boxHeight = Math.min(height, canvas.height - boxY);
+      let isRed = false;
+      if (boxWidth > 0 && boxHeight > 0) {
+        const pixels = context.getImageData(boxX, boxY, boxWidth, boxHeight).data;
+        let red = 0, green = 0, blue = 0, count = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+          if (r > 250 && g > 250 && b > 250) continue;
+          red += r; green += g; blue += b; count++;
+        }
+        if (count) {
+          const averageRed = red / count, averageGreen = green / count, averageBlue = blue / count;
+          isRed = averageRed - averageGreen > 20 && averageRed - averageBlue > 20;
+        }
+      }
+      return { text: item.str, x, y, isRed };
+    });
+    items.sort((a, b) => a.y - b.y);
+    const rows = [];
+    for (const item of items) {
+      const row = rows.find(candidate => Math.abs(item.y - candidate.y) < 4);
+      if (row) row.items.push(item);
+      else rows.push({ y: item.y, items: [item] });
+    }
+    for (const row of rows) {
+      row.items.sort((a, b) => a.x - b.x);
+      allLines.push({ page: pageNum, y: row.y, spans: row.items.map(item => ({ text: item.text, isRed: item.isRed })) });
+    }
+  }
+  return allLines;
+}
+
+function parsePdfSectionHeader(text) {
+  const bracketed = text.match(/^\s*\[([^\]]+)\]/);
+  const candidate = bracketed ? bracketed[1] : text;
+  const match = candidate.match(PDF_SECTION_HEADER_RE);
+  return match ? match[1].replace(/\s+/g, ' ').trim() : null;
+}
+function joinPdfSpans(spans) {
+  return spans.map(span => span.text).join(' ').replace(/\s+([,.;:!?])/g, '$1').replace(/\s+/g, ' ').trim();
+}
+function blankSegment() { return { label: 'Blank', lines: [], isBlank: true }; }
+
+function parsePdfLines(lines) {
+  const segments = [];
+  let current = null;
+  for (const line of lines) {
+    const fullText = joinPdfSpans(line.spans);
+    const redText = joinPdfSpans(line.spans.filter(span => span.isRed));
+    const allRed = line.spans.length > 0 && line.spans.every(span => span.isRed);
+    const label = allRed ? parsePdfSectionHeader(fullText) : null;
+    if (label) {
+      if (OPTIONAL_VOCALS_RE.test(fullText)) { segments.push(blankSegment()); current = null; }
+      else { current = { label, lines: [] }; segments.push(current); }
+      continue;
+    }
+    if (OPTIONAL_VOCALS_RE.test(redText)) {
+      if (current) {
+        const index = segments.lastIndexOf(current);
+        if (index !== -1) segments[index] = blankSegment();
+      } else if (allRed) segments.push(blankSegment());
+      current = null;
+      continue;
+    }
+    const blackText = joinPdfSpans(line.spans.filter(span => !span.isRed));
+    if (blackText && current) current.lines.push(blackText);
+  }
+  return segments;
+}
+
+function buildLyricsText(segments) {
+  const variantsByLabel = new Map();
+  const pieceOrder = [];
+  const arrangementTokens = [];
+  for (const segment of segments) {
+    if (segment.isBlank) { arrangementTokens.push('Blank'); continue; }
+    const body = segment.lines.join('\n').trim();
+    const key = segment.label.toLowerCase();
+    if (!variantsByLabel.has(key)) variantsByLabel.set(key, []);
+    const variants = variantsByLabel.get(key);
+    let variant = variants.find(item => item.body === body);
+    if (!variant) {
+      const variantLabel = variants.length ? `${segment.label} ${variants.length + 1}` : segment.label;
+      variant = { body, variantLabel };
+      variants.push(variant);
+      pieceOrder.push({ label: variantLabel, lines: segment.lines });
+    }
+    arrangementTokens.push(variant.variantLabel);
+  }
+  return {
+    arrangementText: arrangementTokens.join(', '),
+    pieceText: pieceOrder.map(section => `${section.label}\n${section.lines.join('\n')}`).join('\n\n')
+  };
+}
+
+async function handlePdfFile(file) {
+  const status = document.getElementById('pdfStatus');
+  status.textContent = 'Reading PDF…';
+  try {
+    if (!window.pdfjsLib) throw new Error('The PDF reader did not load. Check your internet connection and try again.');
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const segments = parsePdfLines(await extractColoredLines(pdf));
+    if (!segments.length) { status.textContent = 'No red song-section headings were found.'; return; }
+    const built = buildLyricsText(segments);
+    arrangementEl.value = built.arrangementText;
+    pieceEl.value = built.pieceText;
+    generate();
+    status.textContent = `Imported ${segments.length} section${segments.length === 1 ? '' : 's'} from ${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}.`;
+  } catch (error) { status.textContent = 'Could not read that PDF: ' + error.message; }
+}
+
+document.getElementById('importPdfBtn').addEventListener('click', () => document.getElementById('pdfInput').click());
+document.getElementById('pdfInput').addEventListener('change', event => {
+  const file = event.target.files[0];
+  if (file) handlePdfFile(file);
+  event.target.value = '';
+});
+
+generate();
+</script>
+</body>
+</html>
